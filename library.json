@@ -1,0 +1,23 @@
+{
+  "name": "Teensy VS1053b",
+  "version": "1.0.0-alpha",
+  "description": "Yet another library for the VS1053b audio processor - optimized for Teensy microcontroller boards",
+  "keywords": "vs1053b, teensy, audio",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/bimac/Teensy_VS1053b.git"
+  },
+  "authors":
+  [
+    {
+      "name": "Florian Rau",
+      "url": "https://github.com/bimac"
+    }
+  ],
+  "license": "LGPL-3.0",
+  "homepage": "https://github.com/bimac/Teensy_VS1053b",
+  "dependencies": {},
+  "frameworks": "Arduino",
+  "platforms": "Teensy"
+}
