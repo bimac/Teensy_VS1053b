@@ -1,9 +1,9 @@
-#pragma once
-
-// Modified from vs10xx_uc.h (v1.01) in vs1053an_playrec.zip by courtesy of
-// VLSI Solution Oy, Tampere, Finnland - https://vlsi.fi
+// This file is based on vs10xx_uc.h (v1.01) in vs1053an_playrec.zip by courtesy
+// of VLSI Solution Oy, Tampere, Finland - https://vlsi.fi
 //
 // See "Example microcontroller code" at https://vlsi.fi/en/products/vs1053.html
+
+#pragma once
 
 // SCI opcodes
 #define SCI_WRITE            0x02

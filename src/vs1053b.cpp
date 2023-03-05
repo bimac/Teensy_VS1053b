@@ -1,9 +1,25 @@
-#include "vs1053b.h"
-#include "registers.h"
+// This file is part of Teensy_VS1053b.
+// Copyright (C) 2023 Florian Rau
+//
+// Teensy_VS1053b is free software: you can redistribute it and/or modify it
+// under the terms of the GNU Lesser General Public License as published by the
+// Free Software Foundation, either version 3 of the License, or any later
+// version.
+//
+// Teensy_VS1053b is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Foobar. If not, see <https://www.gnu.org/licenses/>.
 
 #if (!defined(__arm__) && defined(TEENSYDUINO))
-#error THIS LIBRARY IS DESIGNED FOR TEENSY BOARDS
+#error THIS LIBRARY IS DESIGNED FOR TEENSY 3.X / 4.X BOARDS
 #endif
+
+#include "vs1053b.h"
+#include "registers.h"
 
 namespace {
 constexpr uint16_t Hz2SC_FREQ(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
