@@ -26,6 +26,7 @@
 class VS1053b {
 
   public:
+
   VS1053b(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
   uint8_t begin(void);
   uint8_t begin(const uint32_t);
@@ -48,7 +49,9 @@ class VS1053b {
   bool isPatched(void);
   bool loadPlugin(const uint16_t *, uint16_t);
 
+
   private:
+
   const uint8_t _pinReset, _pinCS, _pinDCS, _pinDREQ, _pinSDCS, _irqDREQ;
   const uint32_t _XTALI = 12288E3;
   uint32_t _CLKI = _XTALI;
@@ -59,6 +62,7 @@ class VS1053b {
 
   bool connectionTest(void);
   bool readbackTest(void);
+
 
   public:
 
@@ -84,21 +88,21 @@ class VS1053b {
   inline bool getDREQ(void);
   inline void waitForDREQ(void);
 
-  // SCI multiple writes - see section 7.4.3 of datasheet
+  // SCI multiple writes - see section 7.4.3 of data-sheet
   inline void writeSciStart(uint8_t);
   inline void writeSciMid(uint16_t);
   inline void writeSciEnd();
 
-  // SPI wrappers
+  // SPI helpers
   inline void beginTransaction(SPISettings, uint8_t);
   inline void endTransaction(uint8_t);
-  inline void transfer(const void *, void *, size_t);
-
-  inline uint16_t transfer16(uint16_t);
   inline uint16_t transfer16(uint8_t, uint8_t);
-  inline uint32_t transfer32(uint32_t);
-  // inline uint32_t transfer32(uint16_t, uint16_t);
   inline uint32_t transfer32(uint8_t, uint8_t, uint16_t);
+
+  // SPI wrappers
+  inline void transfer(const void *, void *, size_t);
+  inline uint16_t transfer16(uint16_t);
+  inline uint32_t transfer32(uint32_t);
 
   // fill buffer function
   // http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6977#p6977

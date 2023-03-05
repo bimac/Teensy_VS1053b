@@ -200,33 +200,6 @@ bool VS1053b::readbackTest(void) {
   return false;
 }
 
-// bool VS1053b::loadPlugin(const uint16_t *d, uint16_t len) {
-//   uint8_t addr, n, val;
-//   uint16_t i = 0;
-//   while (i < len) {
-//     addr = d[i++];
-//     n = d[i++];
-//     if (n & 0x8000U) {
-//       n &= 0x7FFF;
-//       val = d[i++];
-//       writeSciStart(addr);
-//       while (n--) {
-//         writeSciMid(val);
-//       }
-//       writeSciEnd();
-//     } else {
-//       writeSciStart(addr);
-//       while (n--) {
-//         val = d[i++];
-//         writeSciMid(val);
-//         i++;
-//       }
-//       writeSciEnd();
-//     }
-//   }
-//   return !isPatched();
-// }
-
 bool VS1053b::loadPlugin(const uint16_t *d, uint16_t len) {
   uint8_t addr, n, val;
   uint16_t i = 0;
@@ -374,6 +347,7 @@ inline __attribute__((always_inline)) void VS1053b::waitForDREQ(void) {
 // --- SCI MULTIPLE WRITES -----------------------------------------------------
 
 inline __attribute__((always_inline)) void VS1053b::writeSciStart(uint8_t addr) {
+  waitForDREQ();                       // wait until DREQ is high
   beginTransaction(_SPIConfW, _pinCS); // begin transaction
   transfer16(SCI_WRITE, addr);         // write opcode & SCI address
 }
@@ -388,7 +362,7 @@ inline __attribute__((always_inline)) void VS1053b::writeSciEnd() {
 }
 
 
-// --- SPI WRAPPERS ------------------------------------------------------------
+// --- SPI HELPERS -------------------------------------------------------------
 
 inline __attribute__((always_inline)) void VS1053b::beginTransaction(SPISettings settings, uint8_t pin) {
   waitForDREQ();                  // wait until DREQ is high
@@ -401,23 +375,9 @@ inline __attribute__((always_inline)) void VS1053b::endTransaction(uint8_t pin) 
   SPI.endTransaction();        // end transaction
 }
 
-inline __attribute__((always_inline)) uint16_t VS1053b::transfer16(uint16_t data) {
-  return SPI.transfer16(data);
+inline __attribute__((always_inline)) uint16_t VS1053b::transfer16(uint8_t byte1, uint8_t byte0) {
+  return transfer16(((uint16_t)byte1 << 8) | byte0);
 }
-
-inline __attribute__((always_inline)) uint16_t VS1053b::transfer16(uint8_t msb, uint8_t lsb) {
-  return transfer16(((uint16_t)msb << 8) | lsb);
-}
-
-// inline __attribute__((always_inline)) uint32_t VS1053b::transfer32(uint16_t word1, uint16_t word0) {
-// #if (defined(__IMXRT1052__) || defined(__IMXRT1062__))
-//   return transfer32(((uint32_t)word1 << 16) | word0);
-// #else
-//   uint16_t word1 = this.transfer16(word1);
-//   uint16_t word0 = this.transfer16(word0);
-//   return ((uint32_t)word1 << 16) | word0;
-// #endif
-// }
 
 inline __attribute__((always_inline)) uint32_t VS1053b::transfer32(uint8_t byte3, uint8_t byte2, uint16_t word0) {
 #if (defined(__IMXRT1052__) || defined(__IMXRT1062__))
@@ -429,6 +389,18 @@ inline __attribute__((always_inline)) uint32_t VS1053b::transfer32(uint8_t byte3
 #endif
 }
 
+
+// --- SPI WRAPPERS ------------------------------------------------------------
+// TODO: add bit-banging
+
+inline __attribute__((always_inline)) void VS1053b::transfer(const void *buf, void *retbuf, size_t count) {
+  return SPI.transfer(buf, retbuf, count);
+}
+
+inline __attribute__((always_inline)) uint16_t VS1053b::transfer16(uint16_t data) {
+  return SPI.transfer16(data);
+}
+
 inline __attribute__((always_inline)) uint32_t VS1053b::transfer32(uint32_t data) {
 #if (defined(__IMXRT1052__) || defined(__IMXRT1062__))
   return SPI.transfer32(data);
@@ -437,8 +409,4 @@ inline __attribute__((always_inline)) uint32_t VS1053b::transfer32(uint32_t data
   uint16_t word0 = transfer16(data & 0xFFFFUL);
   return ((uint32_t)word1 << 16) + word0;
 #endif
-}
-
-inline __attribute__((always_inline)) void VS1053b::transfer(const void *buf, void *retbuf, size_t count) {
-  SPI.transfer(buf, retbuf, count);
 }
