@@ -1,6 +1,6 @@
 {
   "name": "Teensy_VS1053b",
-  "version": "1.0.0-alpha",
+  "version": "0.0.1",
   "description": "Yet another library for the VS1053b audio processor - optimized for Teensy microcontroller boards",
   "keywords": "vs1053b, teensy, audio",
   "repository":
