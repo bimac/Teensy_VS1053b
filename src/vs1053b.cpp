@@ -59,13 +59,13 @@ VS1053b::VS1053b(uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDRE
 }
 
 uint8_t VS1053b::begin(void) {
-  return begin(_XTALI / 7);
+  return begin(_XTALI / 4);
 }
 
 uint8_t VS1053b::begin(const uint32_t maxClock) {
 
   _SPIConfR = SPISettings(min(_XTALI / 7, maxClock), MSBFIRST, SPI_MODE0);
-  _SPIConfW = SPISettings(min(_XTALI / 7, maxClock), MSBFIRST, SPI_MODE0);
+  _SPIConfW = SPISettings(min(_XTALI / 4, maxClock), MSBFIRST, SPI_MODE0);
 
   // initialize VS1053b
   resetHW();         // hardware reset to set all output pins
