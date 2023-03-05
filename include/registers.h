@@ -1,3 +1,19 @@
+// This file is part of Teensy_VS1053b.
+// Copyright (C) 2023 Florian Rau.
+//
+// Teensy_VS1053b is free software: you can redistribute it and/or modify it
+// under the terms of the GNU Lesser General Public License as published by the
+// Free Software Foundation, either version 3 of the License, or any later
+// version.
+//
+// Teensy_VS1053b is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Foobar. If not, see <https://www.gnu.org/licenses/>.
+
 // This file is based on vs10xx_uc.h (v1.01) in vs1053an_playrec.zip by courtesy
 // of VLSI Solution Oy, Tampere, Finland - https://vlsi.fi
 //
@@ -229,5 +245,4 @@
 #define GPIO_IDATA         0xc018
 #define GPIO_ODATA         0xc019
 
-
-#define DREQ_ADDRESS 0x5b17
+#define DREQ_ADDRESS       0x5b17
