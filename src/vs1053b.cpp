@@ -1,5 +1,5 @@
 // This file is part of Teensy_VS1053b.
-// Copyright (C) 2023 Florian Rau
+// Copyright (C) 2023 Florian Rau.
 //
 // Teensy_VS1053b is free software: you can redistribute it and/or modify it
 // under the terms of the GNU Lesser General Public License as published by the
