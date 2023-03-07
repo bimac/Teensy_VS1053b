@@ -21,6 +21,11 @@
 #include "vs1053b.h"
 #include "registers.h"
 
+#if __has_include("vs1053b-patches.plg")
+#include "vs1053b-patches.plg"
+#define VS1053B___PATCH_FOUND 1
+#endif
+
 namespace {
 constexpr uint16_t Hz2SC_FREQ(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
 } // namespace
@@ -68,6 +73,12 @@ uint8_t VS1053b::begin(const uint32_t maxClock) {
 
   // store clock setting
   _maxClock = maxClock;
+
+  // if patch has been included try to load it
+  #ifdef VS1053B___PATCH_FOUND
+  if (loadPatch(plugin, sizeof(plugin)/sizeof(plugin[0])))
+    return VS1053B___INIT_FAIL_PATCH;
+  #endif
 
   // we're all set
   return 0;
@@ -194,7 +205,7 @@ bool VS1053b::readbackTest(void) {
   return false;
 }
 
-bool VS1053b::loadPlugin(const uint16_t *d, uint16_t len) {
+bool VS1053b::loadPatch(const uint16_t *d, uint16_t len) {
   uint8_t addr, n, val;
   uint16_t i = 0;
   while (i < len) {

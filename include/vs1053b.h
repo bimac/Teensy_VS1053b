@@ -22,6 +22,7 @@
 #define VS1053B___INIT_FAIL_UNKNOWN_IC 2
 #define VS1053B___INIT_FAIL_CLK_RAISE 3
 #define VS1053B___INIT_FAIL_SD_CARD 4
+#define VS1053B___INIT_FAIL_PATCH 4
 
 class VS1053b {
 
@@ -47,7 +48,7 @@ class VS1053b {
   uint16_t audioBufferUnderflow(void);
 
   bool isPatched(void);
-  bool loadPlugin(const uint16_t *, uint16_t);
+  bool loadPatch(const uint16_t *, uint16_t);
 
 
   private:
