@@ -23,24 +23,6 @@
 
 namespace {
 constexpr uint16_t Hz2SC_FREQ(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
-constexpr uint32_t LOWER_WORD{0x0000FFFF};
-
-typedef struct {
-  union {
-    struct {
-      uint8_t byte3;
-      uint8_t byte2;
-      uint8_t byte1;
-      uint8_t byte0;
-    };
-    struct {
-      uint16_t word1;
-      uint16_t word0;
-    };
-    uint32_t dword;
-  };
-} dword_t;
-
 } // namespace
 
 VS1053b::VS1053b(uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ, uint8_t pinSDCS)
@@ -59,7 +41,7 @@ VS1053b::VS1053b(uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDRE
 }
 
 uint8_t VS1053b::begin(void) {
-  return begin(_XTALI / 4);
+  return begin(_maxClock);
 }
 
 uint8_t VS1053b::begin(const uint32_t maxClock) {
@@ -80,34 +62,36 @@ uint8_t VS1053b::begin(const uint32_t maxClock) {
   if ((readSci(SCI_STATUS) & SS_VER_MASK) != SS_VER_VS1053)
     return VS1053B___INIT_FAIL_UNKNOWN_IC;
 
-  // set clock, adjust speed of SPI bus and confirm with readback
-  setClock(maxClock);
-  if (readbackTest())
+  // set clock multiplier & adjust speed of SPI bus
+  if (setClock(maxClock))
     return VS1053B___INIT_FAIL_CLK_RAISE;
+
+  // store clock setting
+  _maxClock = maxClock;
 
   // we're all set
   return 0;
 }
 
-void VS1053b::setClock(const uint32_t maxClock) {
+bool VS1053b::setClock(const uint32_t maxClock) {
   uint16_t multiplierBits;
 
-  if        (maxClock > _XTALI * 4.0 / 7) {
+  if        (maxClock > (_XTALI / 7 * 4.0)) {
     multiplierBits = SC_MULT_53_45X;
     _CLKI = _XTALI * 4.5;
-  } else if (maxClock > _XTALI * 3.5 / 7) {
+  } else if (maxClock > (_XTALI / 7 * 3.5)) {
     multiplierBits = SC_MULT_53_40X;
     _CLKI = _XTALI * 4.0;
-  } else if (maxClock > _XTALI * 3.0 / 7) {
+  } else if (maxClock > (_XTALI / 7 * 3.0)) {
     multiplierBits = SC_MULT_53_35X;
     _CLKI = _XTALI * 3.5;
-  } else if (maxClock > _XTALI * 2.5 / 7) {
+  } else if (maxClock > (_XTALI / 7 * 2.5)) {
     multiplierBits = SC_MULT_53_30X;
     _CLKI = _XTALI * 3.0;
-  } else if (maxClock > _XTALI * 2.0 / 7) {
+  } else if (maxClock > (_XTALI / 7 * 2.0)) {
     multiplierBits = SC_MULT_53_25X;
     _CLKI = _XTALI * 2.5;
-  } else if (maxClock > _XTALI * 1.0 / 7) {
+  } else if (maxClock > (_XTALI / 7 * 1.0)) {
     multiplierBits = SC_MULT_53_20X;
     _CLKI = _XTALI * 2.0;
   } else {
@@ -115,10 +99,12 @@ void VS1053b::setClock(const uint32_t maxClock) {
     _CLKI = _XTALI;
   }
 
-  writeSci16(SCI_CLOCKF, Hz2SC_FREQ(_XTALI) | multiplierBits);
+  writeSci(SCI_CLOCKF, Hz2SC_FREQ(_XTALI) | multiplierBits);
   _SPIConfR = SPISettings(min(_CLKI / 7, maxClock), MSBFIRST, SPI_MODE0);
   _SPIConfW = SPISettings(min(_CLKI / 4, maxClock), MSBFIRST, SPI_MODE0);
   waitForDREQ();
+
+  return readbackTest();
 }
 
 uint8_t VS1053b::playFile(const char *filename) {
@@ -135,7 +121,7 @@ void VS1053b::resetHW(void) {
 }
 
 void VS1053b::resetSW(void) {
-  writeSci16(SCI_MODE, SM_SDINEW | SM_TESTS | SM_RESET);
+  writeSci(SCI_MODE, SM_SDINEW | SM_TESTS | SM_RESET);
   waitForDREQ();
 }
 
@@ -144,12 +130,12 @@ void VS1053b::volume(uint8_t value) {
 }
 
 void VS1053b::volume(uint8_t left, uint8_t right) {
-  writeMem16(SCI_VOL, ((uint16_t)left << 8) | right);
+  writeWRAM16(SCI_VOL, ((uint16_t)left << 8) | right);
 }
 
 int16_t VS1053b::streamBufferFillWords(void) {
   int16_t bufSize = (readSci(SCI_HDAT1) == 0x664C) ? 0x1800 : 0x400;
-  uint16_t wrp = readMem16(0x5A7D);
+  uint16_t wrp = readWRAM16(0x5A7D);
   uint16_t rdp = readSci(SCI_WRAM);
   int16_t res = wrp - rdp;
   if (res < 0)
@@ -166,7 +152,7 @@ int16_t VS1053b::streamBufferFreeWords(void) {
 }
 
 int16_t VS1053b::audioBufferFillWords(void) {
-  uint16_t wrp = readMem16(0x5A80);
+  uint16_t wrp = readWRAM16(0x5A80);
   uint16_t rdp = readSci(SCI_WRAM);
   return (wrp - rdp) & 4095;
 }
@@ -178,10 +164,18 @@ int16_t VS1053b::audioBufferFreeWords(void) {
   return res - 2;
 }
 
+//  Function returns:
+//  - 0 if there have been no audio buffer overflows since last call
+//  - non-0 if there has been at least one audio buffer overflow since last call
+//
+//  Before calling this function for the 1st time, you have to do the following:
+//  1) Load and start the VS1053b Patches set 2.20 or newer, from
+//     http://www.vlsi.fi/en/support/software/vs10xxpatches.html
+//  2) After the Patches set has started, write 0x60 to register SCI_AIADDR
 uint16_t VS1053b::audioBufferUnderflow(void) {
-  uint16_t uFlow = readMem16(0x5A82);
+  uint16_t uFlow = readWRAM16(0x5A82);
   if (uFlow)
-    writeMem16(0x5A82, 0);
+    writeWRAM16(0x5A82, 0);
   return uFlow;
 }
 
@@ -191,12 +185,12 @@ bool VS1053b::connectionTest(void) {
 }
 
 bool VS1053b::readbackTest(void) {
-  writeSci16(SCI_AICTRL1, 0xABAD);
-  writeSci16(SCI_AICTRL2, 0x7E57);
+  writeSci(SCI_AICTRL1, 0xABAD);
+  writeSci(SCI_AICTRL2, 0x7E57);
   if (readSci(SCI_AICTRL1) != 0xABAD || readSci(SCI_AICTRL2) != 0x7E57)
     return true;
-  writeSci16(SCI_AICTRL1, 0);
-  writeSci16(SCI_AICTRL2, 0);
+  writeSci(SCI_AICTRL1, 0);
+  writeSci(SCI_AICTRL2, 0);
   return false;
 }
 
@@ -206,23 +200,21 @@ bool VS1053b::loadPlugin(const uint16_t *d, uint16_t len) {
   while (i < len) {
     addr = d[i++];
     n = d[i++];
+    beginTransaction(_SPIConfW, _pinCS);
+    transfer16(SCI_WRITE, addr);
     if (n & 0x8000U) {
       n &= 0x7FFF;
       val = d[i++];
-      writeSciStart(addr);
-      while (n--) {
-        writeSciMid(val);
-      }
-      writeSciEnd();
+      while (n--)
+        writeSciMultiple(val);
     } else {
-      writeSciStart(addr);
       while (n--) {
         val = d[i++];
-        writeSciMid(val);
+        writeSciMultiple(val);
         i++;
       }
-      writeSciEnd();
     }
+    endTransaction(_pinCS); // end transaction
   }
   return !isPatched();
 }
@@ -237,49 +229,62 @@ bool VS1053b::isPatched(void) {
 void VS1053b::pinMode(uint8_t pin, uint8_t mode) {
   if (pin > 7)
     return;
-  uint16_t ddr = readMem16(GPIO_DDR);
+  uint16_t ddr = readWRAM16(GPIO_DDR);
   bitWrite(ddr, pin, mode);
-  writeMem16(GPIO_DDR, ddr);
+  writeWRAM16(GPIO_DDR, ddr);
 }
 
 void VS1053b::digitalWrite(uint8_t pin, uint8_t val) {
   if (pin > 7)
     return;
-  uint16_t odata = readMem16(GPIO_ODATA);
+  uint16_t odata = readWRAM16(GPIO_ODATA);
   bitWrite(odata, pin, val);
-  writeMem16(GPIO_ODATA, odata);
+  writeWRAM16(GPIO_ODATA, odata);
 }
 
 uint8_t VS1053b::digitalRead(uint8_t pin) {
   if (pin > 7)
     return 0;
-  uint16_t idata = readMem16(GPIO_IDATA);
+  uint16_t idata = readWRAM16(GPIO_IDATA);
   return bitRead(idata, pin);
 }
 
 
 // --- READING AND WRITING OF SCI_WRAM -----------------------------------------
 
+// write 16-bit value to given address
+void VS1053b::writeWRAM16(uint16_t addr, uint16_t data) {
+  writeSci(SCI_WRAMADDR, addr);
+  writeSci(SCI_WRAM, data);
+}
+
+// write 32-bit value to given address
+void VS1053b::writeWRAM32(uint16_t addr, uint32_t data) {
+  writeSci(SCI_WRAMADDR, addr);
+  writeSci(SCI_WRAM, (data >> 16) & 0xFFFFUL);
+  writeSci(SCI_WRAM, data & 0xFFFFUL);
+}
+
 // read 16-bit value from address
-uint16_t VS1053b::readMem16(uint16_t addr) {
-  writeSci16(SCI_WRAMADDR, addr);
+uint16_t VS1053b::readWRAM16(uint16_t addr) {
+  writeSci(SCI_WRAMADDR, addr);
   return readSci(SCI_WRAM);
 }
 
 // read 32-bit non-changing value from address
-uint32_t VS1053b::readMem32(uint16_t addr) {
+uint32_t VS1053b::readWRAM32(uint16_t addr) {
   uint16_t lsb;
-  writeSci16(SCI_WRAMADDR, addr);
+  writeSci(SCI_WRAMADDR, addr);
   lsb = readSci(SCI_WRAM);
   return lsb | ((uint32_t)readSci(SCI_WRAM) << 16);
 }
 
 // read 32-bit increasing counter value from address
-uint32_t VS1053b::readMem32Counter(uint16_t addr) {
+uint32_t VS1053b::readWRAM32Counter(uint16_t addr) {
   uint16_t msbV1, lsb, msbV2;
 
-  msbV1 = readMem16(addr + 1);
-  lsb   = readMem16(addr);
+  msbV1 = readWRAM16(addr + 1);
+  lsb   = readWRAM16(addr);
   msbV2 = readSci(SCI_WRAM);
   if (lsb < 0x8000U) {
     msbV1 = msbV2;
@@ -287,40 +292,37 @@ uint32_t VS1053b::readMem32Counter(uint16_t addr) {
   return ((uint32_t)msbV1 << 16) | lsb;
 }
 
-// write 16-bit value to given address
-void VS1053b::writeMem16(uint16_t addr, uint16_t data) {
-  writeSci16(SCI_WRAMADDR, addr);
-  writeSci16(SCI_WRAM, data);
-}
-
-// write 32-bit value to given address
-void VS1053b::writeMem32(uint16_t addr, uint32_t data) {
-  writeSci16(SCI_WRAMADDR, addr);
-  writeSci32(SCI_WRAM, data);
-}
-
 
 // --- SCI & SDI OPERATIONS ----------------------------------------------------
 
-void VS1053b::writeSci16(uint8_t addr, uint16_t data) {
+void VS1053b::writeSci(uint8_t addr, uint16_t data) {
   beginTransaction(_SPIConfW, _pinCS);
   transfer32(SCI_WRITE, addr, data);
   endTransaction(_pinCS);
   while (getDREQ()) {;}
 }
 
-void VS1053b::writeSci32(uint8_t addr, uint32_t data) {
-  writeSciStart(addr);
-  writeSciMid((uint16_t)data);
-  writeSciMid((uint16_t)(data >> 16));
-  writeSciEnd();
+// prior to calling this function in a loop:
+// - wait for DREQ
+// - begin the SPI transaction
+// - pull _pinCS low
+// - transfer the address to write to
+//
+// afterwards:
+// - bring _pinCS back up
+// - end the SPI transaction
+inline __attribute__((always_inline)) void VS1053b::writeSciMultiple(uint16_t data) {
+  waitForDREQ();    // wait until DREQ is high
+  transfer16(data); // write data
+  while (getDREQ()) {;}
 }
 
 uint16_t VS1053b::readSci(uint8_t addr) {
   uint16_t data;
   beginTransaction(_SPIConfR, _pinCS);
-  data = transfer32(SCI_READ, addr, 0x0000) & 0xFFFFUL;
+  data = transfer32(SCI_READ, addr, 0x0) & 0xFFFFUL;
   endTransaction(_pinCS);
+  while (getDREQ()) {;}
   return data;
 }
 
@@ -340,25 +342,7 @@ inline __attribute__((always_inline)) bool VS1053b::getDREQ(void) {
 }
 
 inline __attribute__((always_inline)) void VS1053b::waitForDREQ(void) {
-  while (!getDREQ()) { asm volatile("nop"); }
-}
-
-
-// --- SCI MULTIPLE WRITES -----------------------------------------------------
-
-inline __attribute__((always_inline)) void VS1053b::writeSciStart(uint8_t addr) {
-  waitForDREQ();                       // wait until DREQ is high
-  beginTransaction(_SPIConfW, _pinCS); // begin transaction
-  transfer16(SCI_WRITE, addr);         // write opcode & SCI address
-}
-
-inline __attribute__((always_inline)) void VS1053b::writeSciMid(uint16_t data) {
-  waitForDREQ();    // wait until DREQ is high
-  transfer16(data); // write data
-}
-
-inline __attribute__((always_inline)) void VS1053b::writeSciEnd() {
-  endTransaction(_pinCS);
+  while (!getDREQ()) { yield(); }
 }
 
 

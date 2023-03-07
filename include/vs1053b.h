@@ -30,7 +30,7 @@ class VS1053b {
   VS1053b(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
   uint8_t begin(void);
   uint8_t begin(const uint32_t);
-  void setClock(const uint32_t);
+  bool setClock(const uint32_t);
   uint8_t playFile(const char *);
   void resetHW(void);
   void resetSW(void);
@@ -56,6 +56,7 @@ class VS1053b {
   const uint32_t _XTALI = 12288E3;
   uint32_t _CLKI = _XTALI;
   IntervalTimer * _timer;
+  uint32_t _maxClock = _XTALI / 7;
 
   SPISettings _SPIConfR;
   SPISettings _SPIConfW;
@@ -70,15 +71,15 @@ class VS1053b {
   void digitalWrite(uint8_t, uint8_t);
   uint8_t digitalRead(uint8_t);
 
-  uint16_t readMem16(uint16_t addr);
-  uint32_t readMem32(uint16_t addr);
-  uint32_t readMem32Counter(uint16_t addr);
-  void writeMem16(uint16_t addr, uint16_t data);
-  void writeMem32(uint16_t addr, uint32_t data);
+  void writeWRAM16(uint16_t addr, uint16_t data);
+  void writeWRAM32(uint16_t addr, uint32_t data);
+  uint16_t readWRAM16(uint16_t addr);
+  uint32_t readWRAM32(uint16_t addr);
+  uint32_t readWRAM32Counter(uint16_t addr);
 
   // SCI & SDI operations
-  void writeSci16(uint8_t, uint16_t);
-  void writeSci32(uint8_t, uint32_t);
+  void writeSci(uint8_t, uint16_t);
+  inline void writeSciMultiple(uint16_t); // see section 7.4.3 of data-sheet
   uint16_t readSci(uint8_t);
   void writeSdi(const uint8_t *, size_t);
 
@@ -87,11 +88,6 @@ class VS1053b {
   // handling of DREQ
   inline bool getDREQ(void);
   inline void waitForDREQ(void);
-
-  // SCI multiple writes - see section 7.4.3 of data-sheet
-  inline void writeSciStart(uint8_t);
-  inline void writeSciMid(uint16_t);
-  inline void writeSciEnd();
 
   // SPI helpers
   inline void beginTransaction(SPISettings, uint8_t);
