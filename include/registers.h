@@ -12,7 +12,7 @@
 // details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with Foobar. If not, see <https://www.gnu.org/licenses/>.
+// along with Teensy_VS1053b. If not, see <https://www.gnu.org/licenses/>.
 
 // This file is based on vs10xx_uc.h (v1.01) in vs1053an_playrec.zip by courtesy
 // of VLSI Solution Oy, Tampere, Finland - https://vlsi.fi

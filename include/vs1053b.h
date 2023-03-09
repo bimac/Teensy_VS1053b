@@ -12,7 +12,7 @@
 // details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with Foobar. If not, see <https://www.gnu.org/licenses/>.
+// along with Teensy_VS1053b. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
 #include <SD.h>
@@ -28,79 +28,98 @@ class VS1053b {
 
   public:
 
-  VS1053b(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
-  uint8_t begin(void);
-  uint8_t begin(const uint32_t);
-  bool setClock(const uint32_t);
-  uint8_t playFile(const char *);
-  void resetHW(void);
-  void resetSW(void);
+    // constructor for hardware SPI
+    constexpr VS1053b(uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ, uint8_t pinSDCS)
+      : _pinReset(pinReset)
+      , _pinCS(pinCS)
+      , _pinDCS(pinDCS)
+      , _pinDREQ(pinDREQ)
+      , _pinSDCS(pinSDCS)
+      , _pinMOSI(0)
+      , _pinMISO(0)
+      , _pinCLK(0)
+      , _useSoftwareSPI(false) {}
 
-  void volume(uint8_t);
-  void volume(uint8_t, uint8_t);
+    // constructor for software SPI
+    constexpr VS1053b(uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ, uint8_t pinSDCS, uint8_t pinMOSI, uint8_t pinMISO, uint8_t pinCLK)
+      : _pinReset(pinReset)
+      , _pinCS(pinCS)
+      , _pinDCS(pinDCS)
+      , _pinDREQ(pinDREQ)
+      , _pinSDCS(pinSDCS)
+      , _pinMOSI(pinMOSI)
+      , _pinMISO(pinMISO)
+      , _pinCLK(pinCLK)
+      , _useSoftwareSPI(true) {}
 
-  // methods for assessing state of buffers
-  // see http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6679#p6679
-  int16_t streamBufferFillWords(void);
-  int16_t streamBufferFreeWords(void);
-  int16_t audioBufferFillWords(void);
-  int16_t audioBufferFreeWords(void);
-  uint16_t audioBufferUnderflow(void);
+    uint8_t begin(void);
+    uint8_t begin(const uint32_t);
+    bool setClock(const uint32_t);
+    uint8_t playFile(const char *);
+    void resetHW(void);
+    void resetSW(void);
 
-  bool isPatched(void);
-  bool loadPatch(const uint16_t *, uint16_t);
+    void volume(uint8_t);
+    void volume(uint8_t, uint8_t);
+
+    // methods for assessing state of buffers
+    // see http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6679#p6679
+    int16_t streamBufferFillWords(void);
+    int16_t streamBufferFreeWords(void);
+    int16_t audioBufferFillWords(void);
+    int16_t audioBufferFreeWords(void);
+    uint16_t audioBufferUnderflow(void);
+
+    bool isPatched(void);
+    bool loadPatch(const uint16_t *, uint16_t);
+
+private:
+    const uint8_t _pinReset, _pinCS, _pinDCS, _pinDREQ, _pinSDCS, _pinMOSI, _pinMISO, _pinCLK;
+    const uint32_t _XTALI = 12288E3;
+    const uint32_t _CLKI = _XTALI * 4.5;
+    const uint32_t _periodCLKIns = 1E9 / _CLKI + 1;
+    const bool _useSoftwareSPI;
+    uint32_t _maxClock = _XTALI / 4;
+    uint32_t _SPIdelayR = 150;
+    uint32_t _SPIdelayW = 150;
 
 
-  private:
 
-  const uint8_t _pinReset, _pinCS, _pinDCS, _pinDREQ, _pinSDCS, _irqDREQ;
-  const uint32_t _XTALI = 12288E3;
-  uint32_t _CLKI = _XTALI;
-  IntervalTimer * _timer;
-  uint32_t _maxClock = _XTALI / 7;
+    bool connectionTest(void);
+    bool readbackTest(void);
 
-  SPISettings _SPIConfR;
-  SPISettings _SPIConfW;
+public:
+    void pinMode(uint8_t, uint8_t);
+    void digitalWrite(uint8_t, uint8_t);
+    uint8_t digitalRead(uint8_t);
 
-  bool connectionTest(void);
-  bool readbackTest(void);
+    void writeWRAM16(uint16_t addr, uint16_t data);
+    void writeWRAM32(uint16_t addr, uint32_t data);
+    uint16_t readWRAM16(uint16_t addr);
+    uint32_t readWRAM32(uint16_t addr);
+    uint32_t readWRAM32Counter(uint16_t addr);
 
+    // SCI & SDI operations
+    void writeSci(uint8_t, uint16_t);
+    uint16_t readSci(uint8_t);
+    void writeSdi(const uint8_t *, size_t);
 
-  public:
+private:
+    // handling of DREQ
+    inline void wait4DREQhigh(void);
+    inline void wait4DREQlow(void);
 
-  void pinMode(uint8_t, uint8_t);
-  void digitalWrite(uint8_t, uint8_t);
-  uint8_t digitalRead(uint8_t);
+    // SPI helpers
+    inline void beginTransaction(SPISettings, uint8_t);
+    inline void endTransaction(uint8_t);
+    inline uint16_t transfer16(uint8_t, uint8_t);
+    inline uint32_t transfer32(uint8_t, uint8_t, uint16_t);
 
-  void writeWRAM16(uint16_t addr, uint16_t data);
-  void writeWRAM32(uint16_t addr, uint32_t data);
-  uint16_t readWRAM16(uint16_t addr);
-  uint32_t readWRAM32(uint16_t addr);
-  uint32_t readWRAM32Counter(uint16_t addr);
+    // SPI wrappers
+    inline void transfer(const void *, void *, size_t);
+    inline uint16_t transfer16(uint16_t);
+    inline uint32_t transfer32(uint32_t);
 
-  // SCI & SDI operations
-  void writeSci(uint8_t, uint16_t);
-  inline void writeSciMultiple(uint16_t); // see section 7.4.3 of data-sheet
-  uint16_t readSci(uint8_t);
-  void writeSdi(const uint8_t *, size_t);
-
-  private:
-
-  // handling of DREQ
-  inline bool getDREQ(void);
-  inline void waitForDREQ(void);
-
-  // SPI helpers
-  inline void beginTransaction(SPISettings, uint8_t);
-  inline void endTransaction(uint8_t);
-  inline uint16_t transfer16(uint8_t, uint8_t);
-  inline uint32_t transfer32(uint8_t, uint8_t, uint16_t);
-
-  // SPI wrappers
-  inline void transfer(const void *, void *, size_t);
-  inline uint16_t transfer16(uint16_t);
-  inline uint32_t transfer32(uint32_t);
-
-  // fill buffer function
-  // http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6977#p6977
+    // fill buffer function
+    // http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6977#p6977
 };
