@@ -20,6 +20,7 @@
 //   // return SPI.transfer(buf, retbuf, count);
 // }
 
+FASTRUN
 uint16_t softspi::transfer16(uint16_t data) {
   noInterrupts();
   for (int8_t i = 15; i > -1; i--) {
@@ -35,6 +36,7 @@ uint16_t softspi::transfer16(uint16_t data) {
   return data;
 }
 
+FASTRUN
 uint32_t softspi::transfer32(uint32_t data) {
   noInterrupts();
   for (int8_t i = 31; i > -1; i--) {
