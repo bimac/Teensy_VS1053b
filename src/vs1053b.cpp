@@ -28,9 +28,11 @@
 
 namespace {
 constexpr uint16_t Hz2SC_FREQ(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
-//IntervalTimer *_timer;
 SPISettings _SPIConfR;
 SPISettings _SPIConfW;
+softspi * softSPI_read;
+softspi * softSPI_write;
+softspi * softSPI_use;
 } // namespace
 
 uint8_t VS1053b::begin(void) {
@@ -47,16 +49,10 @@ uint8_t VS1053b::begin(const uint32_t maxClock) {
   digitalWriteFast(_pinCS, HIGH);
   digitalWriteFast(_pinDCS, HIGH);
 
-  if (_useSoftwareSPI) {
-    ::pinMode(_pinMOSI, OUTPUT);
-    ::pinMode(_pinMISO, INPUT);
-    ::pinMode(_pinCLK,  OUTPUT);
-  }
-
   // default clock settings
   if (_useSoftwareSPI) {
-    _SPIdelayR = 5E8 / min(_XTALI / 7, maxClock);
-    _SPIdelayW = 5E8 / min(_XTALI / 4, maxClock);
+    softSPI_read  = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 7, maxClock));
+    softSPI_write = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 4, maxClock));
   } else {
     _SPIConfR = SPISettings(min(_XTALI / 7, maxClock), MSBFIRST, SPI_MODE0);
     _SPIConfW = SPISettings(min(_XTALI / 4, maxClock), MSBFIRST, SPI_MODE0);
@@ -92,8 +88,8 @@ uint8_t VS1053b::begin(const uint32_t maxClock) {
 bool VS1053b::setClock(const uint32_t maxClock) {
 
   if (_useSoftwareSPI) {
-    _SPIdelayR = 5E8 / min(_XTALI / 7, maxClock);
-    _SPIdelayW = 5E8 / min(_XTALI / 4, maxClock);
+    softSPI_read  = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 7, maxClock));
+    softSPI_write = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 4, maxClock));
   } else {
     _SPIConfR = SPISettings(min(_XTALI / 7, maxClock), MSBFIRST, SPI_MODE0);
     _SPIConfW = SPISettings(min(_XTALI / 4, maxClock), MSBFIRST, SPI_MODE0);
@@ -102,8 +98,8 @@ bool VS1053b::setClock(const uint32_t maxClock) {
   wait4DREQhigh();
 
   if (_useSoftwareSPI) {
-    _SPIdelayR = 5E8 / min(_CLKI / 7, maxClock);
-    _SPIdelayW = 5E8 / min(_CLKI / 4, maxClock);
+    softSPI_read  = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_CLKI / 7, maxClock));
+    softSPI_write = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_CLKI / 4, maxClock));
   } else {
     _SPIConfR = SPISettings(min(_CLKI / 7, maxClock), MSBFIRST, SPI_MODE0);
     _SPIConfW = SPISettings(min(_CLKI / 4, maxClock), MSBFIRST, SPI_MODE0);
@@ -204,6 +200,8 @@ bool VS1053b::readbackTest(void) {
 }
 
 bool VS1053b::loadPatch(const uint16_t *patch, uint16_t size) {
+  if (_useSoftwareSPI)
+    softSPI_use = softSPI_write;
   uint8_t addr;
   uint16_t n, val, i = 0;
   while (i < size) {
@@ -336,6 +334,8 @@ uint32_t VS1053b::readWRAM32Counter(uint16_t addr) {
 
 FASTRUN
 void VS1053b::writeSci(uint8_t addr, uint16_t data) {
+  if (_useSoftwareSPI)
+    softSPI_use = softSPI_write;
   wait4DREQhigh();
   beginTransaction(_SPIConfW, _pinCS);
   transfer32(SCI_WRITE, addr, data);
@@ -345,6 +345,8 @@ void VS1053b::writeSci(uint8_t addr, uint16_t data) {
 
 FASTRUN
 uint16_t VS1053b::readSci(uint8_t addr) {
+  if (_useSoftwareSPI)
+    softSPI_use = softSPI_read;
   uint16_t data;
   wait4DREQhigh();
   beginTransaction(_SPIConfR, _pinCS);
@@ -358,6 +360,8 @@ FASTRUN
 void VS1053b::writeSdi(const uint8_t *data, size_t bytes) {
   if (bytes > 32 || bytes == 0)
     return;
+  if (_useSoftwareSPI)
+    softSPI_use = softSPI_write;
   beginTransaction(_SPIConfW, _pinDCS);
   transfer(data, nullptr, bytes);
   endTransaction(_pinDCS);
@@ -412,18 +416,7 @@ inline void VS1053b::transfer(const void *buf, void *retbuf, size_t count) {
 
 inline uint16_t VS1053b::transfer16(uint16_t data) {
   if (_useSoftwareSPI) {
-    uint16_t out = 0;
-    noInterrupts();
-    for (uint8_t i = 0; i < 16; i++) {
-      digitalWriteFast(_pinMOSI, bitRead(data, 15 - i));
-      digitalWriteFast(_pinCLK, HIGH);
-      delayNanoseconds(_SPIdelayR);
-      bitWrite(out, 15 - i, digitalReadFast(_pinMISO));
-      digitalWriteFast(_pinCLK, LOW);
-      delayNanoseconds(_SPIdelayR);
-    }
-    interrupts();
-    return out;
+    return(softSPI_use->transfer16(data));
   } else {
     return SPI.transfer16(data);
   }
@@ -431,18 +424,7 @@ inline uint16_t VS1053b::transfer16(uint16_t data) {
 
 inline uint32_t VS1053b::transfer32(uint32_t data) {
   if (_useSoftwareSPI) {
-    uint32_t out = 0;
-    noInterrupts();
-    for (uint8_t i = 0; i < 32; i++) {
-      digitalWriteFast(_pinMOSI, bitRead(data, 31 - i));
-      digitalWriteFast(_pinCLK, HIGH);
-      delayNanoseconds(_SPIdelayR);
-      bitWrite(out, 31 - i, digitalReadFast(_pinMISO));
-      digitalWriteFast(_pinCLK, LOW);
-      delayNanoseconds(_SPIdelayR);
-    }
-    interrupts();
-    return out;
+    return(softSPI_use->transfer32(data));
   } else {
 #if defined(__IMXRT1052__) || defined(__IMXRT1062__)
     return SPI.transfer32(data);

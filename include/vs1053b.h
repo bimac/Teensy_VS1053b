@@ -17,6 +17,7 @@
 #pragma once
 #include <SD.h>
 #include <SPI.h>
+#include "softspi.h"
 
 #define VS1053B___INIT_FAIL_SPI_COMM 1
 #define VS1053B___INIT_FAIL_UNKNOWN_IC 2
@@ -80,10 +81,6 @@ private:
     const uint32_t _periodCLKIns = 1E9 / _CLKI + 1;
     const bool _useSoftwareSPI;
     uint32_t _maxClock = _XTALI / 4;
-    uint32_t _SPIdelayR = 150;
-    uint32_t _SPIdelayW = 150;
-
-
 
     bool connectionTest(void);
     bool readbackTest(void);
