@@ -21,33 +21,31 @@
 // }
 
 uint16_t softspi::transfer16(uint16_t data) {
-  uint16_t out = 0;
   noInterrupts();
-  for (uint8_t i = 0; i < 16; i++) {
-    digitalWriteFast(_pinMOSI, bitRead(data, 15 - i));
+  for (int8_t i = 15; i > -1; i--) {
+    digitalWriteFast(_pinMOSI, bitRead(data, i));
     digitalWriteFast(_pinCLK, HIGH);
     delayNanoseconds(_delay);
-    bitWrite(out, 15 - i, digitalReadFast(_pinMISO));
+    bitWrite(data, i, digitalReadFast(_pinMISO));
     digitalWriteFast(_pinCLK, LOW);
     delayNanoseconds(_delay);
   }
   digitalWriteFast(_pinMOSI, HIGH);
   interrupts();
-  return out;
+  return data;
 }
 
 uint32_t softspi::transfer32(uint32_t data) {
-  uint32_t out = 0;
   noInterrupts();
-  for (uint8_t i = 0; i < 32; i++) {
-    digitalWriteFast(_pinMOSI, bitRead(data, 31 - i));
+  for (int8_t i = 31; i > -1; i--) {
+    digitalWriteFast(_pinMOSI, bitRead(data, i));
     digitalWriteFast(_pinCLK, HIGH);
     delayNanoseconds(_delay);
-    bitWrite(out, 31 - i, digitalReadFast(_pinMISO));
-    digitalToggleFast(_pinCLK);
+    bitWrite(data, i, digitalReadFast(_pinMISO));
+    digitalWriteFast(_pinCLK, LOW);
     delayNanoseconds(_delay);
   }
   digitalWriteFast(_pinMOSI, HIGH);
   interrupts();
-  return out;
+  return data;
 }
