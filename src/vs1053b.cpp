@@ -30,9 +30,9 @@ namespace {
 constexpr uint16_t Hz2SC_FREQ(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
 SPISettings _SPIConfR;
 SPISettings _SPIConfW;
-softspi * softSPI_read;
-softspi * softSPI_write;
-softspi * softSPI_use;
+softSPI * softSPI_read;
+softSPI * softSPI_write;
+softSPI * softSPI_use;
 } // namespace
 
 uint8_t VS1053b::begin(void) {
@@ -51,11 +51,12 @@ uint8_t VS1053b::begin(const uint32_t maxClock) {
 
   // default clock settings
   if (_useSoftwareSPI) {
-    softSPI_read  = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 7, maxClock));
-    softSPI_write = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 4, maxClock));
+    softSPI_read  = new softSPI(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 7, maxClock));
+    softSPI_write = new softSPI(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 4, maxClock));
   } else {
     _SPIConfR = SPISettings(min(_XTALI / 7, maxClock), MSBFIRST, SPI_MODE0);
     _SPIConfW = SPISettings(min(_XTALI / 4, maxClock), MSBFIRST, SPI_MODE0);
+    SPI.begin();
   }
 
   // initialize VS1053b
@@ -88,8 +89,8 @@ uint8_t VS1053b::begin(const uint32_t maxClock) {
 bool VS1053b::setClock(const uint32_t maxClock) {
 
   if (_useSoftwareSPI) {
-    softSPI_read  = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 7, maxClock));
-    softSPI_write = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 4, maxClock));
+    softSPI_read  = new softSPI(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 7, maxClock));
+    softSPI_write = new softSPI(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_XTALI / 4, maxClock));
   } else {
     _SPIConfR = SPISettings(min(_XTALI / 7, maxClock), MSBFIRST, SPI_MODE0);
     _SPIConfW = SPISettings(min(_XTALI / 4, maxClock), MSBFIRST, SPI_MODE0);
@@ -98,8 +99,8 @@ bool VS1053b::setClock(const uint32_t maxClock) {
   wait4DREQhigh();
 
   if (_useSoftwareSPI) {
-    softSPI_read  = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_CLKI / 7, maxClock));
-    softSPI_write = new softspi(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_CLKI / 4, maxClock));
+    softSPI_read  = new softSPI(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_CLKI / 7, maxClock));
+    softSPI_write = new softSPI(_pinMOSI, _pinMISO, _pinCLK, 5E8 / min(_CLKI / 4, maxClock));
   } else {
     _SPIConfR = SPISettings(min(_CLKI / 7, maxClock), MSBFIRST, SPI_MODE0);
     _SPIConfW = SPISettings(min(_CLKI / 4, maxClock), MSBFIRST, SPI_MODE0);
@@ -200,8 +201,6 @@ bool VS1053b::readbackTest(void) {
 }
 
 bool VS1053b::loadPatch(const uint16_t *patch, uint16_t size) {
-  if (_useSoftwareSPI)
-    softSPI_use = softSPI_write;
   uint8_t addr;
   uint16_t n, val, i = 0;
   while (i < size) {
@@ -214,7 +213,7 @@ bool VS1053b::loadPatch(const uint16_t *patch, uint16_t size) {
       val = patch[i++];
 
       // write address and, if possible, first value
-      beginTransaction(_SPIConfW, _pinCS);
+      beginTransaction(_SPIConfW, softSPI_write, _pinCS);
       if (n == 0) {
         transfer16(SCI_WRITE, addr);
       } else {
@@ -235,7 +234,7 @@ bool VS1053b::loadPatch(const uint16_t *patch, uint16_t size) {
     } else {
 
       // write address and, if possible, first value
-      beginTransaction(_SPIConfW, _pinCS);
+      beginTransaction(_SPIConfW, softSPI_write, _pinCS);
       if (n == 0) {
         transfer16(SCI_WRITE, addr);
       } else {
@@ -334,10 +333,8 @@ uint32_t VS1053b::readWRAM32Counter(uint16_t addr) {
 
 FASTRUN
 void VS1053b::writeSci(uint8_t addr, uint16_t data) {
-  if (_useSoftwareSPI)
-    softSPI_use = softSPI_write;
   wait4DREQhigh();
-  beginTransaction(_SPIConfW, _pinCS);
+  beginTransaction(_SPIConfW, softSPI_write, _pinCS);
   transfer32(SCI_WRITE, addr, data);
   endTransaction(_pinCS);
   wait4DREQlow();
@@ -345,11 +342,9 @@ void VS1053b::writeSci(uint8_t addr, uint16_t data) {
 
 FASTRUN
 uint16_t VS1053b::readSci(uint8_t addr) {
-  if (_useSoftwareSPI)
-    softSPI_use = softSPI_read;
   uint16_t data;
   wait4DREQhigh();
-  beginTransaction(_SPIConfR, _pinCS);
+  beginTransaction(_SPIConfR, softSPI_read, _pinCS);
   data = transfer32(SCI_READ, addr, 0x0) & 0xFFFFUL;
   endTransaction(_pinCS);
   wait4DREQlow();
@@ -360,37 +355,27 @@ FASTRUN
 void VS1053b::writeSdi(const uint8_t *data, size_t bytes) {
   if (bytes > 32 || bytes == 0)
     return;
-  if (_useSoftwareSPI)
-    softSPI_use = softSPI_write;
-  beginTransaction(_SPIConfW, _pinDCS);
+  beginTransaction(_SPIConfW, softSPI_write, _pinDCS);
   transfer(data, nullptr, bytes);
   endTransaction(_pinDCS);
 }
 
 
-// --- HANDLING OF DREQ --------------------------------------------------------
-
-inline __attribute__((always_inline)) void VS1053b::wait4DREQhigh(void) {
-  while (!digitalReadFast(_pinDREQ)) { yield(); }
-}
-
-inline __attribute__((always_inline)) void VS1053b::wait4DREQlow(void) {
-  while (digitalReadFast(_pinDREQ)) { yield(); }
-}
-
 // --- SPI HELPERS -------------------------------------------------------------
 
-inline void VS1053b::beginTransaction(SPISettings settings, uint8_t pin) {
-  wait4DREQhigh();                   // wait until DREQ is high
-  if (!_useSoftwareSPI)
-    SPI.beginTransaction(settings); // begin transaction
-  digitalWriteFast(pin, LOW);       // activate CS
+inline void VS1053b::beginTransaction(SPISettings hwSPIsettings, softSPI *swSPIsettings, uint8_t pin) {
+  wait4DREQhigh();
+  if (_useSoftwareSPI)
+    softSPI_use = swSPIsettings;
+  else
+    SPI.beginTransaction(hwSPIsettings); // begin SPI transaction
+  digitalWriteFast(pin, LOW);            // activate CS
 }
 
 inline void VS1053b::endTransaction(uint8_t pin) {
   digitalWriteFast(pin, HIGH); // deactivate CS
   if (!_useSoftwareSPI)
-    SPI.endTransaction();      // end transaction
+    SPI.endTransaction();      // end SPI transaction
 }
 
 inline uint16_t VS1053b::transfer16(uint8_t byte1, uint8_t byte0) {

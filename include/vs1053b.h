@@ -78,7 +78,6 @@ private:
     const uint8_t _pinReset, _pinCS, _pinDCS, _pinDREQ, _pinSDCS, _pinMOSI, _pinMISO, _pinCLK;
     const uint32_t _XTALI = 12288E3;
     const uint32_t _CLKI = _XTALI * 4.5;
-    const uint32_t _periodCLKIns = 1E9 / _CLKI + 1;
     const bool _useSoftwareSPI;
     uint32_t _maxClock = _XTALI / 4;
 
@@ -103,11 +102,16 @@ public:
 
 private:
     // handling of DREQ
-    inline void wait4DREQhigh(void);
-    inline void wait4DREQlow(void);
+    inline __attribute__((always_inline)) void wait4DREQhigh(void) {
+      while (!digitalReadFast(_pinDREQ)) { yield(); }
+    }
+
+    inline __attribute__((always_inline)) void wait4DREQlow(void) {
+      while (digitalReadFast(_pinDREQ)) { yield(); }
+    }
 
     // SPI helpers
-    inline void beginTransaction(SPISettings, uint8_t);
+    inline void beginTransaction(SPISettings, softSPI*,  uint8_t);
     inline void endTransaction(uint8_t);
     inline uint16_t transfer16(uint8_t, uint8_t);
     inline uint32_t transfer32(uint8_t, uint8_t, uint16_t);

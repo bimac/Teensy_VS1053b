@@ -16,20 +16,18 @@
 
 #include "softspi.h"
 
-// inline void softspi::transfer(const void *buf, void *retbuf, size_t count) {
-//   // return SPI.transfer(buf, retbuf, count);
-// }
-
 FASTRUN
-uint16_t softspi::transfer16(uint16_t data) {
+uint8_t softSPI::transfer(uint8_t data) {
   noInterrupts();
-  for (int8_t i = 15; i > -1; i--) {
+  for (int8_t i = 7; i > -1; i--) {
     digitalWriteFast(_pinMOSI, bitRead(data, i));
     digitalWriteFast(_pinCLK, HIGH);
-    delayNanoseconds(_delay);
+    if (_delay > 0)
+      delayNanoseconds(_delay);
     bitWrite(data, i, digitalReadFast(_pinMISO));
     digitalWriteFast(_pinCLK, LOW);
-    delayNanoseconds(_delay);
+    if (_delay > 0)
+      delayNanoseconds(_delay);
   }
   digitalWriteFast(_pinMOSI, HIGH);
   interrupts();
@@ -37,15 +35,40 @@ uint16_t softspi::transfer16(uint16_t data) {
 }
 
 FASTRUN
-uint32_t softspi::transfer32(uint32_t data) {
+void softSPI::transfer(const void *buf, void *retbuf, size_t count) {
+
+}
+
+FASTRUN
+uint16_t softSPI::transfer16(uint16_t data) {
+  noInterrupts();
+  for (int8_t i = 15; i > -1; i--) {
+    digitalWriteFast(_pinMOSI, bitRead(data, i));
+    digitalWriteFast(_pinCLK, HIGH);
+    if (_delay > 0)
+      delayNanoseconds(_delay);
+    bitWrite(data, i, digitalReadFast(_pinMISO));
+    digitalWriteFast(_pinCLK, LOW);
+    if (_delay > 0)
+      delayNanoseconds(_delay);
+  }
+  digitalWriteFast(_pinMOSI, HIGH);
+  interrupts();
+  return data;
+}
+
+FASTRUN
+uint32_t softSPI::transfer32(uint32_t data) {
   noInterrupts();
   for (int8_t i = 31; i > -1; i--) {
     digitalWriteFast(_pinMOSI, bitRead(data, i));
     digitalWriteFast(_pinCLK, HIGH);
-    delayNanoseconds(_delay);
+    if (_delay > 0)
+      delayNanoseconds(_delay);
     bitWrite(data, i, digitalReadFast(_pinMISO));
     digitalWriteFast(_pinCLK, LOW);
-    delayNanoseconds(_delay);
+    if (_delay > 0)
+      delayNanoseconds(_delay);
   }
   digitalWriteFast(_pinMOSI, HIGH);
   interrupts();

@@ -17,24 +17,36 @@
 #pragma once
 #include <Arduino.h>
 
-class softspi {
-
+class softSPI {
   public:
-    constexpr softspi(uint8_t pinMOSI, uint8_t pinMISO, uint8_t pinCLK, uint32_t delay)
+    constexpr softSPI(const uint8_t pinMOSI, const uint8_t pinMISO, const uint8_t pinCLK)
+      : _pinMOSI(pinMOSI)
+      , _pinMISO(pinMISO)
+      , _pinCLK(pinCLK)
+      , _delay(0)
+    {
+      pinMode(_pinMOSI, OUTPUT);
+      pinMode(_pinCLK, OUTPUT);
+      pinMode(_pinMISO, INPUT_PULLUP);
+      digitalWriteFast(_pinMOSI, HIGH);
+    }
+    constexpr softSPI(const uint8_t pinMOSI, const uint8_t pinMISO, const uint8_t pinCLK, const uint32_t delay)
       : _pinMOSI(pinMOSI)
       , _pinMISO(pinMISO)
       , _pinCLK(pinCLK)
       , _delay(delay)
     {
       pinMode(_pinMOSI, OUTPUT);
-      pinMode(_pinCLK,  OUTPUT);
+      pinMode(_pinCLK, OUTPUT);
       pinMode(_pinMISO, INPUT_PULLUP);
       digitalWriteFast(_pinMOSI, HIGH);
     }
+    void transfer(const void *, void *, size_t);
+    uint8_t transfer(uint8_t);
     uint16_t transfer16(uint16_t);
     uint32_t transfer32(uint32_t);
 
-  private:
+private:
     const uint8_t _pinMOSI, _pinMISO, _pinCLK;
     const uint32_t _delay;
 };
