@@ -34,7 +34,7 @@ struct VS1053b_SW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
   void initSPI() {}
 
   inline void transfer(const void *buf, void *retbuf, size_t count) {
-
+    // TODO!
   }
 
   inline uint16_t transfer16(uint16_t data) {
@@ -79,10 +79,5 @@ struct VS1053b_SW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
     _delay = 5E8 / clock;
   }
 
-  inline void endTransaction() { }
-
-  // SPI wrappers
-  // void transfer(const void *buf, void *retbuf, size_t count);
-  // uint16_t transfer16(uint16_t data);
-  // uint32_t transfer32(uint32_t data);
+  inline void endTransaction() override { }
 };

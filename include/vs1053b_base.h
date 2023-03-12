@@ -16,6 +16,10 @@
 
 #pragma once
 
+#if (!defined(__arm__) || !defined(TEENSYDUINO))
+#error THIS LIBRARY IS DESIGNED FOR TEENSY 3.X / 4.X BOARDS
+#endif
+
 #if __has_include("vs1053b-patches.plg")
 #define VS1053B___PATCHES_PLG_FOUND
 #endif
@@ -24,22 +28,29 @@
 #include <SD.h>
 #include "registers.h"
 
-#define VS1053B___INIT_FAIL_SPI_COMM 1
+#define VS1053B___INIT_FAIL_SPI_COMM   1
 #define VS1053B___INIT_FAIL_UNKNOWN_IC 2
-#define VS1053B___INIT_FAIL_CLK_RAISE 3
-#define VS1053B___INIT_FAIL_SD_CARD 4
-
-#if (!defined(__arm__) || !defined(TEENSYDUINO))
-#error THIS LIBRARY IS DESIGNED FOR TEENSY 3.X / 4.X BOARDS
-#endif
-
+#define VS1053B___INIT_FAIL_CLK_RAISE  3
+#define VS1053B___INIT_FAIL_SD_CARD    4
 
 template <uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ>
-class VS1053b_Base {
+struct VS1053b_Base {
+
+  // --- VARIOUS VARIABLES -----------------------------------------------------
+  private:
+  static constexpr uint32_t _XTALI = 12288E3;         // clock frequency [Hz]
+  static constexpr uint32_t _dXTALIns = 1E9 / _XTALI; // clock interval [ns]
+  static constexpr uint32_t _CLKI = _XTALI * 4.5;
+  static constexpr uint16_t _Hz2SC(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
+  const uint32_t _maxClock;
 
   protected:
+  uint32_t _clockW;
+  uint32_t _clockR;
 
-  // --- CONSTRUCTOR  ----------------------------------------------------------
+
+  // --- CONSTRUCTOR (ONLY FOR DESCENDANTS) ------------------------------------
+  protected:
 
   VS1053b_Base(uint32_t maxClock)
     : _maxClock(maxClock)
@@ -47,9 +58,8 @@ class VS1053b_Base {
     , _clockR(min(_CLKI / 7, _maxClock)) {}
 
 
-  public:
-
   // --- INITIALIZATION ROUTINE  -----------------------------------------------
+  public:
 
   uint8_t begin(void) {
     // configure pins
@@ -60,10 +70,8 @@ class VS1053b_Base {
     digitalWriteFast(pinCS, HIGH);
     digitalWriteFast(pinDCS, HIGH);
 
-    // initialize SPI
-    initSPI();
-
     // initialize VS1053b
+    initSPI();         // initialize SPI
     resetHW();         // hardware reset to set all output pins
     readSci(SCI_MODE); // dummy read to bring SCI bus to a known state
     resetSW();         // software reset (without changing clock)
@@ -90,6 +98,7 @@ class VS1053b_Base {
 
 
   // --- PLAYBACK --------------------------------------------------------------
+  public:
 
   uint8_t playFile(const char *filename) {
     return 0; // TODO
@@ -97,6 +106,7 @@ class VS1053b_Base {
 
 
   // --- GPIO CONTROL ----------------------------------------------------------
+  public:
 
   void pinMode(uint8_t pin, uint8_t mode) {
     if (pin > 7)
@@ -123,6 +133,7 @@ class VS1053b_Base {
 
 
   // --- VOLUME CONTROL --------------------------------------------------------
+  public:
 
   void volume(uint8_t value) {
     volume(value, value);
@@ -134,6 +145,9 @@ class VS1053b_Base {
 
 
   // --- STREAM & AUDIO BUFFERS ------------------------------------------------
+  //
+  // see http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6679#p6679
+  public:
 
   int16_t streamBufferFillWords(void) {
     int16_t bufSize = (readSci(SCI_HDAT1) == 0x664C) ? 0x1800 : 0x400;
@@ -173,17 +187,19 @@ class VS1053b_Base {
     return uFlow;
   }
 
-  // fill buffer function
+  // TODO: fill buffer function
   // http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6977#p6977
 
 
   // --- handling of DREQ ------------------------------------------------------
-  inline __attribute__((always_inline)) void waitForDREQ(bool state) const {
+  public:
+  inline __attribute__((always_inline)) void waitForDREQ(bool state = HIGH) {
     while (digitalReadFast(pinDREQ) != state) { yield(); }
   }
 
 
   // --- reset functions, clock set & tests ------------------------------------
+  private:
 
   void resetHW(void) {
     digitalWriteFast(pinReset, LOW);
@@ -202,7 +218,7 @@ class VS1053b_Base {
   }
 
   bool setClock() {
-    writeSci(SCI_CLOCKF, Hz2SC_FREQ(_XTALI) | SC_MULT_53_45X);
+    writeSci(SCI_CLOCKF, _Hz2SC(_XTALI) | SC_MULT_53_45X);
     _clockR = min(_CLKI / 7, _maxClock);
     _clockW = min(_CLKI / 4, _maxClock);
     waitForDREQ(HIGH);
@@ -377,6 +393,7 @@ class VS1053b_Base {
     waitForDREQ(LOW);
   }
 
+
   // --- SPI: pure virtual methods to be implemented by descendants ------------
   protected:
   virtual void initSPI() = 0;
@@ -395,12 +412,4 @@ class VS1053b_Base {
   virtual uint32_t transfer32(uint8_t byte3, uint8_t byte2, uint16_t word0) {
     return transfer32(((uint32_t)byte3 << 24) | ((uint32_t)byte2 << 16) | word0);
   }
-
-  static constexpr uint16_t Hz2SC_FREQ(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
-  static constexpr uint32_t _XTALI = 12288E3;         // internal clock frequency [Hz]
-  static constexpr uint32_t _dXTALIns = 1E9 / _XTALI; // period of internal clock [ns]
-  static constexpr uint32_t _CLKI = _XTALI * 4.5;
-  const uint32_t _maxClock;
-  uint32_t _clockW;
-  uint32_t _clockR;
 };

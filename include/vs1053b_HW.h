@@ -28,11 +28,11 @@ struct VS1053b_HW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
   const SPISettings _SPIConfR = SPISettings(this->_clockR, MSBFIRST, SPI_MODE0);
   const SPISettings _SPIConfW = SPISettings(this->_clockW, MSBFIRST, SPI_MODE0);
 
-  void initSPI() {
+  void initSPI() override {
     SPI.begin();
   }
 
-  inline void transfer(const void *buf, void *retbuf, size_t count) {
+  inline void transfer(const void *buf, void *retbuf, size_t count) override {
     return SPI.transfer(buf, retbuf, count);
   }
 
@@ -54,7 +54,7 @@ struct VS1053b_HW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
 #endif
   }
 
-  inline uint32_t transfer32(uint8_t byte3, uint8_t byte2, uint16_t word0) {
+  inline uint32_t transfer32(uint8_t byte3, uint8_t byte2, uint16_t word0) override {
 #if (defined(__IMXRT1052__) || defined(__IMXRT1062__))
     return SPI.transfer32(((uint32_t)byte3 << 24) | ((uint32_t)byte2 << 16) | word0);
 #else
@@ -64,11 +64,11 @@ struct VS1053b_HW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
 #endif
   }
 
-  inline void beginTransaction(const uint32_t clock) {
+  inline void beginTransaction(const uint32_t clock) override {
     SPI.beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
   }
 
-  inline void endTransaction() {
+  inline void endTransaction() override {
     SPI.endTransaction();
   }
 };
