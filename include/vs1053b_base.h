@@ -28,43 +28,37 @@
 #define VS1053B___PATCHES_PLG_FOUND
 #endif
 
+#include "registers.h"
 #include <Arduino.h>
 #include <SD.h>
-#include "registers.h"
 
-#define VS1053B___INIT_FAIL_SPI_COMM   1
+#define VS1053B___INIT_FAIL_SPI_COMM 1
 #define VS1053B___INIT_FAIL_UNKNOWN_IC 2
-#define VS1053B___INIT_FAIL_CLK_RAISE  3
-#define VS1053B___INIT_FAIL_SD_CARD    4
+#define VS1053B___INIT_FAIL_CLK_RAISE 3
+#define VS1053B___INIT_FAIL_SD_CARD 4
 
 template <uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ>
 struct VS1053b_Base {
 
+private:
   // --- VARIOUS VARIABLES -----------------------------------------------------
-  private:
   static constexpr uint32_t _XTALI = 12288E3;         // clock frequency [Hz]
   static constexpr uint32_t _dXTALIns = 1E9 / _XTALI; // clock interval [ns]
   static constexpr uint32_t _CLKI = _XTALI * 4.5;
   static constexpr uint16_t _Hz2SC(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
   const uint32_t _maxClock;
 
-  protected:
+protected:
   uint32_t _clockW;
   uint32_t _clockR;
 
-
   // --- CONSTRUCTOR (ONLY FOR DESCENDANTS) ------------------------------------
-  protected:
-
   VS1053b_Base(uint32_t maxClock)
-    : _maxClock(maxClock)
-    , _clockW(min(_CLKI / 4, _maxClock))
-    , _clockR(min(_CLKI / 7, _maxClock)) {}
+      : _maxClock(maxClock), _clockW(min(_CLKI / 4, _maxClock)),
+        _clockR(min(_CLKI / 7, _maxClock)) {}
 
-
+public:
   // --- INITIALIZATION ROUTINE  -----------------------------------------------
-  public:
-
   uint8_t begin(void) {
     // configure pins
     ::pinMode(pinReset, OUTPUT);
@@ -92,7 +86,7 @@ struct VS1053b_Base {
     if (setClock())
       return VS1053B___INIT_FAIL_CLK_RAISE;
 
-    // if vs1053b-patches.plg has been included: load it
+      // if vs1053b-patches.plg has been included: load it
 #if defined(VS1053B___PATCHES_PLG_FOUND)
     loadPatch(plugin, sizeof(plugin) / sizeof(plugin[0]));
 #endif
@@ -100,18 +94,12 @@ struct VS1053b_Base {
     return false;
   }
 
-
   // --- PLAYBACK --------------------------------------------------------------
-  public:
-
   uint8_t playFile(const char *filename) {
     return 0; // TODO
   }
 
-
   // --- GPIO CONTROL ----------------------------------------------------------
-  public:
-
   void pinMode(uint8_t pin, uint8_t mode) {
     if (pin > 7)
       return;
@@ -135,24 +123,16 @@ struct VS1053b_Base {
     return bitRead(idata, pin);
   }
 
-
   // --- VOLUME CONTROL --------------------------------------------------------
-  public:
-
-  void volume(uint8_t value) {
-    volume(value, value);
-  }
+  void volume(uint8_t value) { volume(value, value); }
 
   void volume(uint8_t left, uint8_t right) {
     writeWRAM16(SCI_VOL, ((uint16_t)left << 8) | right);
   }
 
-
   // --- STREAM & AUDIO BUFFERS ------------------------------------------------
   //
   // see http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6679#p6679
-  public:
-
   int16_t streamBufferFillWords(void) {
     int16_t bufSize = (readSci(SCI_HDAT1) == 0x664C) ? 0x1800 : 0x400;
     uint16_t wrp = readWRAM16(0x5A7D);
@@ -194,17 +174,15 @@ struct VS1053b_Base {
   // TODO: fill buffer function
   // http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6977#p6977
 
-
   // --- handling of DREQ ------------------------------------------------------
-  public:
   inline __attribute__((always_inline)) void waitForDREQ(bool state = HIGH) {
-    while (digitalReadFast(pinDREQ) != state) { yield(); }
+    while (digitalReadFast(pinDREQ) != state) {
+      yield();
+    }
   }
 
-
+private:
   // --- reset functions, clock set & tests ------------------------------------
-  private:
-
   void resetHW(void) {
     digitalWriteFast(pinReset, LOW);
     digitalWriteFast(pinCS, HIGH);
@@ -250,10 +228,8 @@ struct VS1053b_Base {
     return false;
   }
 
-
+public:
   // --- loading of patches ----------------------------------------------------
-  public:
-
   void loadPatch(const uint16_t *patch, const uint16_t size) {
     uint8_t addr;
     uint16_t n, val, i = 0;
@@ -312,9 +288,8 @@ struct VS1053b_Base {
     endTransaction();
   }
 
-
-  // --- READING AND WRITING OF SCI_WRAM -----------------------------------------
-  public:
+public:
+  // --- READING AND WRITING OF SCI_WRAM ---------------------------------------
 
   // write 16-bit value to given address
   void writeWRAM16(uint16_t addr, uint16_t data) {
@@ -356,10 +331,8 @@ struct VS1053b_Base {
     return ((uint32_t)msbV1 << 16) | lsb;
   }
 
-
-  // --- SCI & SDI OPERATIONS ----------------------------------------------------
-  public:
-
+public:
+  // --- SCI & SDI OPERATIONS --------------------------------------------------
   FASTRUN
   void writeSci(uint8_t addr, uint16_t data) {
     beginTransaction(_clockW);
@@ -397,9 +370,8 @@ struct VS1053b_Base {
     waitForDREQ(LOW);
   }
 
-
+protected:
   // --- SPI: pure virtual methods to be implemented by descendants ------------
-  protected:
   virtual void initSPI() = 0;
   virtual void beginTransaction(uint32_t clock) = 0;
   virtual void endTransaction() = 0;
@@ -407,13 +379,13 @@ struct VS1053b_Base {
   virtual uint16_t transfer16(uint16_t) = 0;
   virtual uint32_t transfer32(uint32_t) = 0;
 
-
+protected:
   // --- SPI: helper functions -------------------------------------------------
-  protected:
   uint16_t transfer16(uint8_t byte1, uint8_t byte0) {
     return transfer16(((uint16_t)byte1 << 8) | byte0);
   }
   virtual uint32_t transfer32(uint8_t byte3, uint8_t byte2, uint16_t word0) {
-    return transfer32(((uint32_t)byte3 << 24) | ((uint32_t)byte2 << 16) | word0);
+    return transfer32(((uint32_t)byte3 << 24) | ((uint32_t)byte2 << 16) |
+                      word0);
   }
 };

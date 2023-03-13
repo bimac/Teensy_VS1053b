@@ -19,20 +19,20 @@
 #define VS1053B___INCLUDE_SW
 #include "vs1053b_base.h"
 
-
-
-template <uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ, uint8_t pinMOSI, uint8_t pinMISO, uint8_t pinCLK>
+template <uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ,
+          uint8_t pinMOSI, uint8_t pinMISO, uint8_t pinCLK>
 struct VS1053b_SW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
 
   // constructors
-  VS1053b_SW(uint32_t maxClock = 14E6) : VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ>(maxClock) {
+  VS1053b_SW(uint32_t maxClock = 14E6)
+      : VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ>(maxClock) {
     pinMode(pinMOSI, OUTPUT);
     pinMode(pinCLK, OUTPUT);
     pinMode(pinMISO, INPUT_PULLUP);
     digitalWriteFast(pinMOSI, HIGH);
   };
 
-  private:
+private:
   uint32_t _delay = 0;
 
   void initSPI() {}
@@ -58,9 +58,7 @@ struct VS1053b_SW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
     return data;
   }
 
-  inline uint16_t transfer16(uint8_t byte1, uint8_t byte0) {
-    return 0;
-  }
+  inline uint16_t transfer16(uint8_t byte1, uint8_t byte0) { return 0; }
 
   inline uint32_t transfer32(uint32_t data) {
     noInterrupts();
@@ -79,9 +77,7 @@ struct VS1053b_SW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
     return data;
   }
 
-  inline void beginTransaction(const uint32_t clock) {
-    _delay = 5E8 / clock;
-  }
+  inline void beginTransaction(const uint32_t clock) { _delay = 5E8 / clock; }
 
-  inline void endTransaction() override { }
+  inline void endTransaction() override {}
 };

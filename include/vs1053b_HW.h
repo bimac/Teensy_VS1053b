@@ -20,27 +20,24 @@
 #include "vs1053b_base.h"
 #include <SPI.h>
 
-
-
 template <uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ>
 struct VS1053b_HW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
 
   // constructors
-  VS1053b_HW(uint32_t maxClock = 14E6) : VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ>(maxClock) {}
+  VS1053b_HW(uint32_t maxClock = 14E6)
+      : VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ>(maxClock) {}
 
-  private:
+private:
   const SPISettings _SPIConfR = SPISettings(this->_clockR, MSBFIRST, SPI_MODE0);
   const SPISettings _SPIConfW = SPISettings(this->_clockW, MSBFIRST, SPI_MODE0);
 
-  void initSPI() override {
-    SPI.begin();
-  }
+  void initSPI() override { SPI.begin(); }
 
   inline void transfer(const void *buf, void *retbuf, size_t count) override {
     return SPI.transfer(buf, retbuf, count);
   }
 
-  inline uint16_t transfer16(uint16_t data) {
+  inline uint16_t transfer16(uint16_t data) override {
     return SPI.transfer16(data);
   }
 
@@ -48,7 +45,7 @@ struct VS1053b_HW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
     return SPI.transfer16(((uint16_t)byte1 << 8) | byte0);
   }
 
-  inline uint32_t transfer32(uint32_t data) {
+  inline uint32_t transfer32(uint32_t data) override {
 #if defined(__IMXRT1052__) || defined(__IMXRT1062__)
     return SPI.transfer32(data);
 #else
@@ -58,9 +55,11 @@ struct VS1053b_HW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
 #endif
   }
 
-  inline uint32_t transfer32(uint8_t byte3, uint8_t byte2, uint16_t word0) override {
+  inline uint32_t transfer32(uint8_t byte3, uint8_t byte2,
+                             uint16_t word0) override {
 #if (defined(__IMXRT1052__) || defined(__IMXRT1062__))
-    return SPI.transfer32(((uint32_t)byte3 << 24) | ((uint32_t)byte2 << 16) | word0);
+    return SPI.transfer32(((uint32_t)byte3 << 24) | ((uint32_t)byte2 << 16) |
+                          word0);
 #else
     uint16_t out1 = SPI.transfer16(byte3, byte2);
     uint16_t out0 = SPI.transfer16(word0);
@@ -72,7 +71,5 @@ struct VS1053b_HW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
     SPI.beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
   }
 
-  inline void endTransaction() override {
-    SPI.endTransaction();
-  }
+  inline void endTransaction() override { SPI.endTransaction(); }
 };
