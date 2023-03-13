@@ -15,8 +15,12 @@
 // along with Teensy_VS1053b. If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
+
+#define VS1053B___INCLUDE_HW
 #include "vs1053b_base.h"
 #include <SPI.h>
+
+
 
 template <uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ>
 struct VS1053b_HW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {

@@ -16,8 +16,12 @@
 
 #pragma once
 
+#if (!defined(VS1053B___INCLUDE_HW) && !defined(VS1053B___INCLUDE_SW))
+#error Include either "vs1053b_HW.h" or "vs1053b_SW.h" - not "vs1053b_base.h".
+#endif
+
 #if (!defined(__arm__) || !defined(TEENSYDUINO))
-#error THIS LIBRARY IS DESIGNED FOR TEENSY 3.X / 4.X BOARDS
+#error This library is designed for Teensy 3.x / 4.x boards.
 #endif
 
 #if __has_include("vs1053b-patches.plg")
