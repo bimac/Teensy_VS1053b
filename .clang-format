@@ -1,0 +1,8 @@
+---
+BasedOnStyle: LLVM
+AlignConsecutiveMacros: 'true'
+AlignConsecutiveAssignments: 'true'
+AlignTrailingComments: 'true'
+InsertBraces: 'true'
+AllowShortBlocksOnASingleLine: 'true'
+...
