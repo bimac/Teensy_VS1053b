@@ -24,10 +24,10 @@
 #error This library is designed for Teensy 3.x / 4.x boards.
 #endif
 
+#include "IntervalTimerEx.h"
 #include "registers.h"
 #include <Arduino.h>
 #include <SD.h>
-#include <TeensyTimerTool.h>
 
 #define VS1053B___INIT_FAIL_SPI_COMM   1
 #define VS1053B___INIT_FAIL_UNKNOWN_IC 2
@@ -44,7 +44,7 @@ private:
   static constexpr uint32_t _CLKI     = _XTALI * 4.5;
   static constexpr uint16_t _Hz2SC(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
   const uint32_t _maxClock;
-  TeensyTimerTool::PeriodicTimer feedTimer;
+  IntervalTimerEx feedTimer;
   uint8_t buffer[512];
 
 protected:
@@ -100,18 +100,18 @@ public:
   uint8_t playFile(const char *filename) {
     Serial.println(SD.mediaPresent());
     Serial.println(SD.exists(filename));
-    File f = SD.open(filename);
-    feedTimer.begin([&] { ISRfeeder(f); }, 1000);
+    // File f = SD.open(filename);
+    feedTimer.begin([&] { ISRfeeder(); }, 1000);
     return 0; // TODO
   }
 
-  void ISRfeeder(File f) {
+  void ISRfeeder() {
     Serial.println(streamBufferFreeWords());
-    if (streamBufferFreeWords() < 512) {
-      return;
-    }
-    f.read(buffer, 32);
-    writeSdi(buffer, 32);
+    // if (streamBufferFreeWords() < 512) {
+    //   return;
+    // }
+    // f.read(buffer, 32);
+    // writeSdi(buffer, 32);
   }
 
   // --- GPIO CONTROL ----------------------------------------------------------
