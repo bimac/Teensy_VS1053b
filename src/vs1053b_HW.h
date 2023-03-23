@@ -41,10 +41,6 @@ private:
     return SPI.transfer16(data);
   }
 
-  inline uint16_t transfer16(uint8_t byte1, uint8_t byte0) {
-    return SPI.transfer16(((uint16_t)byte1 << 8) | byte0);
-  }
-
   inline uint32_t transfer32(uint32_t data) override {
 #if defined(__IMXRT1052__) || defined(__IMXRT1062__)
     return SPI.transfer32(data);

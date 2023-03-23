@@ -24,29 +24,28 @@
 #error This library is designed for Teensy 3.x / 4.x boards.
 #endif
 
-#if __has_include("vs1053b-patches.plg")
-#define VS1053B___PATCHES_PLG_FOUND
-#endif
-
 #include "registers.h"
 #include <Arduino.h>
 #include <SD.h>
+#include <TeensyTimerTool.h>
 
-#define VS1053B___INIT_FAIL_SPI_COMM 1
+#define VS1053B___INIT_FAIL_SPI_COMM   1
 #define VS1053B___INIT_FAIL_UNKNOWN_IC 2
-#define VS1053B___INIT_FAIL_CLK_RAISE 3
-#define VS1053B___INIT_FAIL_SD_CARD 4
+#define VS1053B___INIT_FAIL_CLK_RAISE  3
+#define VS1053B___INIT_FAIL_SD_CARD    4
 
 template <uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ>
 struct VS1053b_Base {
 
 private:
   // --- VARIOUS VARIABLES -----------------------------------------------------
-  static constexpr uint32_t _XTALI = 12288E3;         // clock frequency [Hz]
+  static constexpr uint32_t _XTALI    = 12288E3;      // clock frequency [Hz]
   static constexpr uint32_t _dXTALIns = 1E9 / _XTALI; // clock interval [ns]
-  static constexpr uint32_t _CLKI = _XTALI * 4.5;
+  static constexpr uint32_t _CLKI     = _XTALI * 4.5;
   static constexpr uint16_t _Hz2SC(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
   const uint32_t _maxClock;
+  TeensyTimerTool::PeriodicTimer feedTimer;
+  uint8_t buffer[512];
 
 protected:
   uint32_t _clockW;
@@ -75,19 +74,22 @@ public:
     resetSW();         // software reset (without changing clock)
 
     // check if SPI communication works
-    if (connectionTest())
+    if (connectionTest()) {
       return VS1053B___INIT_FAIL_SPI_COMM;
+    }
 
     // check if we're actually talking to a VS1053b
-    if ((readSci(SCI_STATUS) & SS_VER_MASK) != SS_VER_VS1053)
+    if ((readSci(SCI_STATUS) & SS_VER_MASK) != SS_VER_VS1053) {
       return VS1053B___INIT_FAIL_UNKNOWN_IC;
+    }
 
     // set clock multiplier & adjust speed of SPI bus
-    if (setClock())
+    if (setClock()) {
       return VS1053B___INIT_FAIL_CLK_RAISE;
+    }
 
-      // if vs1053b-patches.plg has been included: load it
-#if defined(VS1053B___PATCHES_PLG_FOUND)
+    // load vs1053b-patches.plg
+#if __has_include("vs1053b-patches.plg") && !defined(VS1053B___DO_NOT_PATCH)
     loadPatch(plugin, sizeof(plugin) / sizeof(plugin[0]));
 #endif
 
@@ -96,29 +98,45 @@ public:
 
   // --- PLAYBACK --------------------------------------------------------------
   uint8_t playFile(const char *filename) {
+    Serial.println(SD.mediaPresent());
+    Serial.println(SD.exists(filename));
+    File f = SD.open(filename);
+    feedTimer.begin([&] { ISRfeeder(f); }, 1000);
     return 0; // TODO
+  }
+
+  void ISRfeeder(File f) {
+    Serial.println(streamBufferFreeWords());
+    if (streamBufferFreeWords() < 512) {
+      return;
+    }
+    f.read(buffer, 32);
+    writeSdi(buffer, 32);
   }
 
   // --- GPIO CONTROL ----------------------------------------------------------
   void pinMode(uint8_t pin, uint8_t mode) {
-    if (pin > 7)
+    if (pin > 7) {
       return;
+    }
     uint16_t ddr = readWRAM16(GPIO_DDR);
     bitWrite(ddr, pin, mode);
     writeWRAM16(GPIO_DDR, ddr);
   }
 
   void digitalWrite(uint8_t pin, uint8_t val) {
-    if (pin > 7)
+    if (pin > 7) {
       return;
+    }
     uint16_t odata = readWRAM16(GPIO_ODATA);
     bitWrite(odata, pin, val);
     writeWRAM16(GPIO_ODATA, odata);
   }
 
   uint8_t digitalRead(uint8_t pin) {
-    if (pin > 7)
+    if (pin > 7) {
       return 0;
+    }
     uint16_t idata = readWRAM16(GPIO_IDATA);
     return bitRead(idata, pin);
   }
@@ -135,19 +153,21 @@ public:
   // see http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6679#p6679
   int16_t streamBufferFillWords(void) {
     int16_t bufSize = (readSci(SCI_HDAT1) == 0x664C) ? 0x1800 : 0x400;
-    uint16_t wrp = readWRAM16(0x5A7D);
-    uint16_t rdp = readSci(SCI_WRAM);
-    int16_t res = wrp - rdp;
-    if (res < 0)
+    uint16_t wrp    = readWRAM16(0x5A7D);
+    uint16_t rdp    = readSci(SCI_WRAM);
+    int16_t res     = wrp - rdp;
+    if (res < 0) {
       return res + bufSize;
+    }
     return res;
   }
 
   int16_t streamBufferFreeWords(void) {
     int16_t bufSize = (readSci(SCI_HDAT1) == 0x664C) ? 0x1800 : 0x400;
-    int16_t res = bufSize - streamBufferFillWords();
-    if (res < 2)
+    int16_t res     = bufSize - streamBufferFillWords();
+    if (res < 2) {
       return 0;
+    }
     return res - 2;
   }
 
@@ -159,15 +179,17 @@ public:
 
   int16_t audioBufferFreeWords(void) {
     int16_t res = 4096 - audioBufferFillWords();
-    if (res < 2)
+    if (res < 2) {
       return 0;
+    }
     return res - 2;
   }
 
   uint16_t audioBufferUnderflow(void) {
     uint16_t uFlow = readWRAM16(0x5A82);
-    if (uFlow)
+    if (uFlow) {
       writeWRAM16(0x5A82, 0);
+    }
     return uFlow;
   }
 
@@ -204,25 +226,29 @@ private:
     _clockR = min(_CLKI / 7, _maxClock);
     _clockW = min(_CLKI / 4, _maxClock);
     waitForDREQ(HIGH);
-    if (readbackTest())
+    if (readbackTest()) {
       return true;
+    }
     return false;
   }
 
   bool connectionTest() {
     uint16_t status = readSci(SCI_STATUS);
-    if (status == 0 || status == 0xFFFF)
+    if (status == 0 || status == 0xFFFF) {
       return true;
+    }
     return readbackTest();
   }
 
   bool readbackTest(void) {
     writeSci(SCI_AICTRL1, 0xABAD);
-    if (readSci(SCI_AICTRL1) != 0xABAD)
+    if (readSci(SCI_AICTRL1) != 0xABAD) {
       return true;
+    }
     writeSci(SCI_AICTRL2, 0x7E57);
-    if (readSci(SCI_AICTRL2) != 0x7E57)
+    if (readSci(SCI_AICTRL2) != 0x7E57) {
       return true;
+    }
     writeSci(SCI_AICTRL1, 0);
     writeSci(SCI_AICTRL2, 0);
     return false;
@@ -236,7 +262,7 @@ public:
     beginTransaction(_clockW);
     while (i < size) {
       addr = patch[i++];
-      n = patch[i++];
+      n    = patch[i++];
 
       // RLE run, replicate n samples
       if (n & 0x8000U) {
@@ -288,7 +314,6 @@ public:
     endTransaction();
   }
 
-public:
   // --- READING AND WRITING OF SCI_WRAM ---------------------------------------
 
   // write 16-bit value to given address
@@ -323,7 +348,7 @@ public:
     uint16_t msbV1, lsb, msbV2;
 
     msbV1 = readWRAM16(addr + 1);
-    lsb = readWRAM16(addr);
+    lsb   = readWRAM16(addr);
     msbV2 = readSci(SCI_WRAM);
     if (lsb < 0x8000U) {
       msbV1 = msbV2;
@@ -331,7 +356,6 @@ public:
     return ((uint32_t)msbV1 << 16) | lsb;
   }
 
-public:
   // --- SCI & SDI OPERATIONS --------------------------------------------------
   FASTRUN
   void writeSci(uint8_t addr, uint16_t data) {
@@ -359,8 +383,9 @@ public:
 
   FASTRUN
   void writeSdi(const uint8_t *data, size_t bytes) {
-    if (bytes > 32 || bytes == 0)
+    if (bytes > 32 || bytes == 0) {
       return;
+    }
     beginTransaction(_clockW);
     waitForDREQ(HIGH);
     digitalWriteFast(pinDCS, LOW);
@@ -372,14 +397,13 @@ public:
 
 protected:
   // --- SPI: pure virtual methods to be implemented by descendants ------------
-  virtual void initSPI() = 0;
-  virtual void beginTransaction(uint32_t clock) = 0;
-  virtual void endTransaction() = 0;
+  virtual void initSPI()                              = 0;
+  virtual void beginTransaction(uint32_t clock)       = 0;
+  virtual void endTransaction()                       = 0;
   virtual void transfer(const void *, void *, size_t) = 0;
-  virtual uint16_t transfer16(uint16_t) = 0;
-  virtual uint32_t transfer32(uint32_t) = 0;
+  virtual uint16_t transfer16(uint16_t)               = 0;
+  virtual uint32_t transfer32(uint32_t)               = 0;
 
-protected:
   // --- SPI: helper functions -------------------------------------------------
   uint16_t transfer16(uint8_t byte1, uint8_t byte0) {
     return transfer16(((uint16_t)byte1 << 8) | byte0);

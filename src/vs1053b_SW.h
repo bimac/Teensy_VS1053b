@@ -19,8 +19,8 @@
 #define VS1053B___INCLUDE_SW
 #include "vs1053b_base.h"
 
-template <uint8_t pinReset, uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ,
-          uint8_t pinMOSI, uint8_t pinMISO, uint8_t pinCLK>
+template <uint8_t pinMOSI, uint8_t pinMISO, uint8_t pinCLK, uint8_t pinReset,
+          uint8_t pinCS, uint8_t pinDCS, uint8_t pinDREQ>
 struct VS1053b_SW : public VS1053b_Base<pinReset, pinCS, pinDCS, pinDREQ> {
 
   // constructors
@@ -46,31 +46,33 @@ private:
     for (int8_t i = 15; i > -1; i--) {
       digitalWriteFast(pinMOSI, bitRead(data, i));
       digitalWriteFast(pinCLK, HIGH);
-      if (_delay > 0)
+      if (_delay > 0) {
         delayNanoseconds(_delay);
+      }
       bitWrite(data, i, digitalReadFast(pinMISO));
       digitalWriteFast(pinCLK, LOW);
-      if (_delay > 0)
+      if (_delay > 0) {
         delayNanoseconds(_delay);
+      }
     }
     digitalWriteFast(pinMOSI, HIGH);
     interrupts();
     return data;
   }
 
-  inline uint16_t transfer16(uint8_t byte1, uint8_t byte0) { return 0; }
-
   inline uint32_t transfer32(uint32_t data) {
     noInterrupts();
     for (int8_t i = 31; i > -1; i--) {
       digitalWriteFast(pinMOSI, bitRead(data, i));
       digitalWriteFast(pinCLK, HIGH);
-      if (_delay > 0)
+      if (_delay > 0) {
         delayNanoseconds(_delay);
+      }
       bitWrite(data, i, digitalReadFast(pinMISO));
       digitalWriteFast(pinCLK, LOW);
-      if (_delay > 0)
+      if (_delay > 0) {
         delayNanoseconds(_delay);
+      }
     }
     digitalWriteFast(pinMOSI, HIGH);
     interrupts();
