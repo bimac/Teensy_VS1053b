@@ -45,7 +45,6 @@ private:
   static constexpr uint16_t _Hz2SC(uint32_t Hz) { return (Hz - 8E6) / 4E3; }
   const uint32_t _maxClock;
   IntervalTimerEx feedTimer;
-  uint8_t buffer[512];
 
 protected:
   uint32_t _clockW;
@@ -98,20 +97,26 @@ public:
 
   // --- PLAYBACK --------------------------------------------------------------
   uint8_t playFile(const char *filename) {
-    Serial.println(SD.mediaPresent());
-    Serial.println(SD.exists(filename));
-    // File f = SD.open(filename);
-    feedTimer.begin([&] { ISRfeeder(); }, 1000);
+    // http://www.vsdsp-forum.com/phpbb/viewtopic.php?t=1502
+    if (!SD.exists(filename)) {
+      return 1;
+    }
+    File f = SD.open(filename, O_READ);
+    decodeTime(0);
+
+    feedTimer.begin([=] { ISRfeeder(f); }, 2000);
     return 0; // TODO
   }
 
-  void ISRfeeder() {
-    Serial.println(streamBufferFreeWords());
-    // if (streamBufferFreeWords() < 512) {
-    //   return;
-    // }
-    // f.read(buffer, 32);
-    // writeSdi(buffer, 32);
+  void ISRfeeder(File f) {
+    uint8_t buffer[512];
+    if (!DREQ() || streamBufferFreeWords() < 256) {
+      return;
+    }
+    f.read(buffer, 512);
+    for (uint16_t i = 0; i < 500; i += 32) {
+      writeSdi(buffer + i, 32);
+    }
   }
 
   // --- GPIO CONTROL ----------------------------------------------------------
@@ -148,23 +153,48 @@ public:
     writeWRAM16(SCI_VOL, ((uint16_t)left << 8) | right);
   }
 
+  // --- SCI_DECODE_TIME -------------------------------------------------------
+  // When decoding correct data, current decoded time is shown in this register
+  // in full seconds.
+  void decodeTime(uint16_t value) {
+    // The user may change the value of this register. In that case the new
+    // value should be written twice to make absolutely certain that the change
+    // is not overwritten by the firmware.
+    writeSci(SCI_DECODE_TIME, value);
+    writeSci(SCI_DECODE_TIME, value);
+  }
+
+  uint16_t decodeTime() { return readSci(SCI_DECODE_TIME); }
+
   // --- STREAM & AUDIO BUFFERS ------------------------------------------------
   //
   // see http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6679#p6679
-  int16_t streamBufferFillWords(void) {
-    int16_t bufSize = (readSci(SCI_HDAT1) == 0x664C) ? 0x1800 : 0x400;
-    uint16_t wrp    = readWRAM16(0x5A7D);
-    uint16_t rdp    = readSci(SCI_WRAM);
-    int16_t res     = wrp - rdp;
+  inline uint16_t streamBufferSize(void) {
+    return (readSci(SCI_HDAT1) == 0x664C) ? 0x1800 : 0x400;
+  }
+
+  int16_t streamBufferFillWords() {
+    uint16_t bufSize = streamBufferSize();
+    return streamBufferFillWords(bufSize);
+  }
+
+  int16_t streamBufferFillWords(uint16_t bufSize) {
+    uint16_t wrp = readWRAM16(0x5A7D);
+    uint16_t rdp = readSci(SCI_WRAM);
+    int16_t res  = wrp - rdp;
     if (res < 0) {
       return res + bufSize;
     }
     return res;
   }
 
-  int16_t streamBufferFreeWords(void) {
-    int16_t bufSize = (readSci(SCI_HDAT1) == 0x664C) ? 0x1800 : 0x400;
-    int16_t res     = bufSize - streamBufferFillWords();
+  int16_t streamBufferFreeWords() {
+    uint16_t bufSize = streamBufferSize();
+    return streamBufferFreeWords(bufSize);
+  }
+
+  int16_t streamBufferFreeWords(uint16_t bufSize) {
+    int16_t res = bufSize - streamBufferFillWords();
     if (res < 2) {
       return 0;
     }
@@ -197,8 +227,12 @@ public:
   // http://www.vsdsp-forum.com/phpbb/viewtopic.php?p=6977#p6977
 
   // --- handling of DREQ ------------------------------------------------------
+  inline __attribute__((always_inline)) bool DREQ() {
+    return digitalReadFast(pinDREQ);
+  }
+
   inline __attribute__((always_inline)) void waitForDREQ(bool state = HIGH) {
-    while (digitalReadFast(pinDREQ) != state) {
+    while (DREQ() != state) {
       yield();
     }
   }
@@ -383,17 +417,31 @@ public:
 
   FASTRUN
   void writeSdi(const uint8_t *data, size_t bytes) {
-    if (bytes > 32 || bytes == 0) {
+    if (bytes == 0) {
       return;
     }
     beginTransaction(_clockW);
-    waitForDREQ(HIGH);
+    // waitForDREQ(HIGH);
     digitalWriteFast(pinDCS, LOW);
     transfer(data, nullptr, bytes);
     digitalWriteFast(pinDCS, HIGH);
     endTransaction();
-    waitForDREQ(LOW);
+    // waitForDREQ(LOW);
   }
+
+  // FASTRUN
+  // void writeSdi(const uint8_t *data, size_t bytes) {
+  //   if (bytes > 32 || bytes == 0) {
+  //     return;
+  //   }
+  //   beginTransaction(_clockW);
+  //   waitForDREQ(HIGH);
+  //   digitalWriteFast(pinDCS, LOW);
+  //   transfer(data, nullptr, bytes);
+  //   digitalWriteFast(pinDCS, HIGH);
+  //   endTransaction();
+  //   // waitForDREQ(LOW);
+  // }
 
 protected:
   // --- SPI: pure virtual methods to be implemented by descendants ------------
