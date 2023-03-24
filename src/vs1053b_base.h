@@ -104,13 +104,13 @@ public:
     File f = SD.open(filename, O_READ);
     decodeTime(0);
 
-    feedTimer.begin([=] { ISRfeeder(f); }, 2000);
-    return 0; // TODO
+    feedTimer.begin([=] { ISRfeeder(f); }, 5000); // DO NOT HARD-CODE!
+    return 0;
   }
 
   void ISRfeeder(File f) {
     uint8_t buffer[512];
-    if (!DREQ() || streamBufferFreeWords() < 256) {
+    if (!DREQ() || streamBufferFreeWords(0x400) < 512) { // DO NOT HARD-CODE!
       return;
     }
     f.read(buffer, 512);
@@ -421,12 +421,10 @@ public:
       return;
     }
     beginTransaction(_clockW);
-    // waitForDREQ(HIGH);
     digitalWriteFast(pinDCS, LOW);
     transfer(data, nullptr, bytes);
     digitalWriteFast(pinDCS, HIGH);
     endTransaction();
-    // waitForDREQ(LOW);
   }
 
   // FASTRUN

@@ -35,6 +35,7 @@ private:
 
   inline void transfer(const void *buf, void *retbuf, size_t count) override {
     return SPI.transfer(buf, retbuf, count);
+    // return SPI.transfer32(buf, retbuf, count); //teensy4!
   }
 
   inline uint16_t transfer16(uint16_t data) override {
